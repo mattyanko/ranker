@@ -459,7 +459,7 @@
                     ? `**${positiveCategories.join(', ')}** and **${lastPositive}**`
                     : `**${lastPositive}**`;
                 
-                likeText = `Your core priorities are ${likeText}.`;
+                likeText = `Your top toppings are ${likeText}.`;
             } else {
                 likeText = `You are highly critical, showing no feature dominance.`;
             }
@@ -470,7 +470,7 @@
                     ? `${negativeCategories.join(', ')} and ${lastNegative}`
                     : lastNegative;
                 
-                dislikeText = `You are less concerned with **${dislikeText}** compared to your core priorities.`;
+                dislikeText = `You are less interested in **${dislikeText}** compared to your top choices .`;
             }
 
             summaryTextElement.innerHTML = `${likeText} ${dislikeText}`;
