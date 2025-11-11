@@ -149,16 +149,11 @@
         // *** DYNAMICALLY SCALABLE CATEGORIES ***
         // To change the number of items, just modify this array.
         const CATEGORIES = [
-            'Pepperoni', 
-            'Truffle', 
-            'Mushrooms', 
-            'Buffalo Mozzarella', 
-            'Arugala',
-			'Marinara',
-			'Potato & Truffle oil',
-			'Broccoli',
-			'Margherita',
-			'Porcini Mushrooms'
+            'Speed', 
+            'Clarity', 
+            'Trust', 
+            'Depth', 
+            'Tone'
             // Add more categories here to scale the assessment (e.g., 10 total items).
         ];
         
@@ -368,10 +363,11 @@
             currentPairIndex++;
             
             // Advance to the next comparison after a slight delay to ensure click registers
+            // Increased delay to 100ms for more aggressive Safari mobile fix
             setTimeout(() => {
                 document.activeElement.blur(); 
                 startComparison();
-            }, 50); 
+            }, 100); 
         }
 
         function updateProgress() {
