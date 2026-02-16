@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Movie Genre Preferences (Demo)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0d1117; 
+        }
+        .choice-option {
+            transition: all 0.2s ease;
+            cursor: pointer;
+            user-select: none;
+            border: 2px solid transparent;
+        }
+        .choice-option:hover {
+            border-color: #8b5cf6;
+        }
+        .choice-option.selected {
+            border-color: #4ade80;
+            background-color: #15803d;
+        }
+        .choice-option:focus {
+            outline: none;
+            box-shadow: none;
+        }
+        .main-container {
+            min-height: 100vh;
+        }
+        .summary-active #summary-content {
+            transform: scale(1);
+            opacity: 1;
+        }
+        .option-button {
+            padding: 1rem 1.5rem;
+            border-radius: 0.5rem;
+            text-align: center;
+            font-weight: 600;
+            background-color: #374151;
+            color: white;
+        }
+        .trade-off-container .option-button {
+            font-size: 1.125rem;
+            height: 100px;
+        }
+        .movie-card {
+            transition: all 0.3s ease;
+        }
+        .movie-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 25px rgba(139, 92, 246, 0.3);
+        }
+    </style>
+</head>
+<body class="text-white">
+
+    <div id="app" class="main-container flex flex-col items-center justify-start p-4 md:p-8">
+        
+        <header class="w-full max-w-lg mb-8 text-center pt-8">
+            <h1 class="text-3xl font-extrabold text-purple-400">🎬 Movie Genre Matcher</h1>
+            <p class="text-gray-400 mt-2">Rank your favorite movie genres to get personalized recommendations</p>
+            <p class="text-sm text-yellow-500 mt-1">⚡ Demo Version - Using Sample Data</p>
+            <div id="progress-bar" class="w-full bg-gray-700 rounded-full h-2.5 mt-4">
+                <div id="progress-indicator" class="bg-purple-500 h-2.5 rounded-full transition-all duration-300 ease-out" style="width: 0%"></div>
+            </div>
+        </header>
+        
+        <!-- Start Screen -->
+        <div id="start-screen" class="w-full max-w-lg flex flex-col items-center justify-center p-8 bg-gray-800 rounded-xl shadow-2xl space-y-8">
+            <h2 class="text-2xl font-bold text-white text-center">Quick Instructions</h2>
+            <p class="text-lg text-gray-300 text-center">
+                You will compare <span id="pair-count">12</span> pairs of movie genres. For each pair, select the genre you prefer watching.
+                <br><br>Be honest and quick with your choices!
+            </p>
+            <button id="start-btn" class="w-full bg-green-600 hover:bg-green-700 text-white text-xl font-bold py-4 px-6 rounded-lg shadow-lg transition duration-150 ease-in-out">
+                Start Genre Ranking
+            </button>
+        </div>
+
+        <!-- Comparison View -->
+        <div id="comparison-view" class="w-full max-w-lg flex flex-col items-center space-y-8 hidden">
+            <p id="comparison-text" class="text-lg font-semibold text-gray-300"></p>
+            
+            <div id="options-container" class="w-full flex flex-col space-y-3">
+                <div id="trade-off-container" class="w-full flex justify-between space-x-3 trade-off-container">
+                    <!-- Buttons generated here -->
+                </div>
+            </div>
+            
+            <p id="error-message" class="text-red-400 h-6"></p>
+        </div>
+
+        <!-- Summary View -->
+        <div id="summary-view" class="w-full max-w-lg mt-12 flex flex-col items-center p-4 hidden">
+            <div class="bg-gray-800 p-8 rounded-xl shadow-2xl w-full text-center transform scale-90 opacity-0 transition duration-500" id="summary-content">
+                <h3 class="text-3xl font-extrabold text-yellow-400 mb-6">Your Movie Taste Profile</h3>
+                <p id="dynamic-summary-text" class="text-xl text-white leading-relaxed font-medium mb-8"></p>
+                
+                <button id="view-movies-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white text-xl font-bold py-4 px-6 rounded-lg shadow-lg transition duration-150 ease-in-out">
+                    🎬 Find Movies for Me!
+                </button>
+            </div>
+        </div>
+
+        <!-- Movies View -->
+        <div id="movies-view" class="w-full max-w-6xl mt-12 hidden">
+            <h2 class="text-3xl font-bold text-green-400 mb-6 text-center">🎯 Your Personalized Recommendations</h2>
+            
+            <!-- Genre Weights Summary -->
+            <div id="genre-weights" class="bg-gray-800 rounded-xl p-6 shadow-xl mb-8">
+                <h3 class="text-xl font-semibold mb-4 border-b border-gray-700 pb-2">Your Genre Preferences</h3>
+                <div id="weights-container" class="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    <!-- Genre weights injected here -->
+                </div>
+            </div>
+
+            <!-- Movie Results -->
+            <div id="movie-results" class="space-y-6">
+                <!-- Movie cards injected here -->
+            </div>
+
+            <div class="flex justify-center mt-8">
+                <button id="restart-btn" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-8 rounded-lg shadow-lg transition duration-150 ease-in-out">
+                    Start Over
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // *** Configuration ***
+        const CATEGORIES = [
+            'Action',
+            'Comedy', 
+            'Drama',
+            'Thriller',
+            'Horror',
+            'Romance',
+            'Sci-Fi',
+            'Fantasy',
+            'Crime',
+            'Mystery',
+            'Adventure',
+            'Animation'
+        ];
+        
+        const EXPOSURE_COUNT = 3;
+        const SCORE_PREFERENCE_WIN = 2;
+        const SCORE_PREFERENCE_LOSS = -2;
+
+        // Sample movie database for demo - focusing on newer releases (2015-2024)
+        const SAMPLE_MOVIES = [
+            // Recent Action
+            { Title: "Dune: Part Two", Year: "2024", Genre: "Action, Adventure, Sci-Fi", imdbRating: "8.7", Plot: "Paul Atreides unites with Chani and the Fremen while seeking revenge against the conspirators who destroyed his family.", Poster: "https://m.media-amazon.com/images/M/MV5BN2QyZGU4ZDctOWMzMy00NTc5LThlOGQtODhmNDI1NmY5YzAwXkEyXkFqcGdeQXVyMDM2NDM2MQ@@._V1_SX300.jpg" },
+            { Title: "Top Gun: Maverick", Year: "2022", Genre: "Action, Drama", imdbRating: "8.3", Plot: "After thirty years, Maverick is still pushing the envelope as a top naval aviator, but must confront ghosts of his past.", Poster: "https://m.media-amazon.com/images/M/MV5BZWYzOGEwNTgtNWU3NS00ZTQ0LWJkODUtMmVhMjIwMjA1ZmQwXkEyXkFqcGdeQXVyMjkwOTAyMDU@._V1_SX300.jpg" },
+            { Title: "Everything Everywhere All at Once", Year: "2022", Genre: "Action, Adventure, Comedy", imdbRating: "7.8", Plot: "A middle-aged Chinese immigrant is swept up into an insane adventure in which she alone can save existence.", Poster: "https://m.media-amazon.com/images/M/MV5BYTdiOTIyZTQtNmQ1OS00NjZlLWIyMTgtYzk5Y2M3ZDVmMDk1XkEyXkFqcGdeQXVyMTAzMDg4NzU0._V1_SX300.jpg" },
+            { Title: "Spider-Man: Across the Spider-Verse", Year: "2023", Genre: "Animation, Action, Adventure", imdbRating: "8.7", Plot: "Miles Morales catapults across the Multiverse, where he encounters a team of Spider-People.", Poster: "https://m.media-amazon.com/images/M/MV5BMzI0NmVkMjEtYmY4MS00ZDMxLTlkZmEtMzU4MDQxYTMzMjU2XkEyXkFqcGdeQXVyMzQ0MzA0NTM@._V1_SX300.jpg" },
+            
+            // Recent Comedy
+            { Title: "Barbie", Year: "2023", Genre: "Adventure, Comedy, Fantasy", imdbRating: "6.9", Plot: "Barbie and Ken are having the time of their lives in Barbieland, but soon go on a journey of self-discovery.", Poster: "https://m.media-amazon.com/images/M/MV5BNjU3N2QxNzYtMjk1NC00MTc4LTk1NTQtMmUxNTljM2I0NDA5XkEyXkFqcGdeQXVyODE5NzE3OTE@._V1_SX300.jpg" },
+            { Title: "The Menu", Year: "2022", Genre: "Comedy, Horror, Thriller", imdbRating: "7.2", Plot: "A young couple travels to a remote island to eat at an exclusive restaurant where the chef has prepared a lavish menu.", Poster: "https://m.media-amazon.com/images/M/MV5BMzdjNjI5MjYtODNlMS00NTA2LWJhNWMtNGI5MTNhOWU0NjNiXkEyXkFqcGdeQXVyMTAyMjQ3NzQ1._V1_SX300.jpg" },
+            { Title: "Glass Onion", Year: "2022", Genre: "Comedy, Crime, Drama", imdbRating: "7.1", Plot: "Tech billionaire Miles Bron invites his friends for a getaway on his private Greek island.", Poster: "https://m.media-amazon.com/images/M/MV5BMzkzNTRiMTQtNTg1MC00NDg4LWFkOWItYzNjZmIxMmU2YjE4XkEyXkFqcGdeQXVyMTEzMTI1Mjk3._V1_SX300.jpg" },
+            
+            // Recent Thriller/Mystery
+            { Title: "No Time to Die", Year: "2021", Genre: "Action, Adventure, Thriller", imdbRating: "7.3", Plot: "James Bond has left active service when his friend Felix Leiter from the CIA turns up asking for help.", Poster: "https://m.media-amazon.com/images/M/MV5BYWQ2NzQ1NjktMzNkNS00MGY1LTgwMmMtYTllYTI5YzNmMmE0XkEyXkFqcGdeQXVyMjkwOTAyMDU@._V1_SX300.jpg" },
+            { Title: "The Batman", Year: "2022", Genre: "Action, Crime, Drama", imdbRating: "7.8", Plot: "When a sadistic serial killer begins murdering key political figures in Gotham, Batman is forced to investigate.", Poster: "https://m.media-amazon.com/images/M/MV5BMDdmMTBiNTYtMDIzNi00NGVlLWIzMDYtZTk3MTQ3NGQxZGEwXkEyXkFqcGdeQXVyMzMwOTU5MDk@._V1_SX300.jpg" },
+            { Title: "Oppenheimer", Year: "2023", Genre: "Biography, Drama, History", imdbRating: "8.5", Plot: "The story of American scientist J. Robert Oppenheimer and his role in the development of the atomic bomb.", Poster: "https://m.media-amazon.com/images/M/MV5BMDBmYTZjNjUtN2M1MS00MTQ2LTk2ODgtNzc2M2QyZGE5NTVjXkEyXkFqcGdeQXVyNzAwMjU2MTY@._V1_SX300.jpg" },
+            { Title: "Knives Out", Year: "2019", Genre: "Comedy, Crime, Drama", imdbRating: "7.9", Plot: "A detective investigates the death of a patriarch of an eccentric, combative family.", Poster: "https://m.media-amazon.com/images/M/MV5BMGUwZjliMTAtNzAxZi00MWNiLWE2NzgtZGUxMGQxZjhhNDRiXkEyXkFqcGdeQXVyNjU1NzU3MzE@._V1_SX300.jpg" },
+            
+            // Recent Horror
+            { Title: "A Quiet Place Part II", Year: "2020", Genre: "Drama, Horror, Sci-Fi", imdbRating: "7.3", Plot: "Following the deadly events at home, the Abbott family must now face the terrors of the outside world.", Poster: "https://m.media-amazon.com/images/M/MV5BMTE2ODU4NDEtNmRjNS00OTk1LTg4NmMtNTAzYzVlNmFkYjgxXkEyXkFqcGdeQXVyODk4OTc3MTY@._V1_SX300.jpg" },
+            { Title: "Hereditary", Year: "2018", Genre: "Drama, Horror, Mystery", imdbRating: "7.3", Plot: "A grieving family is haunted by tragic and disturbing occurrences.", Poster: "https://m.media-amazon.com/images/M/MV5BOTU5MDg3OGItZWQ1Ny00ZGVmLTg2YTUtMzBkYzQ1YWIwZDlmXkEyXkFqcGdeQXVyNTAzMTY4MDA@._V1_SX300.jpg" },
+            { Title: "Midsommar", Year: "2019", Genre: "Drama, Horror, Mystery", imdbRating: "7.1", Plot: "A couple travels to Sweden to visit a rural hometown's fabled mid-summer festival. What begins as an idyllic retreat quickly devolves into an increasingly violent and bizarre competition.", Poster: "https://m.media-amazon.com/images/M/MV5BMzQxNzQzOTQwM15BMl5BanBnXkFtZTgwMDQ2NTcwODM@._V1_SX300.jpg" },
+            { Title: "Get Out", Year: "2017", Genre: "Horror, Mystery, Thriller", imdbRating: "7.7", Plot: "A young African-American visits his white girlfriend's parents for the weekend, where his simmering uneasiness about their reception of him eventually reaches a boiling point.", Poster: "https://m.media-amazon.com/images/M/MV5BMjUxMDQwNjcyNl5BMl5BanBnXkFtZTgwNzcwMzc0MTI@._V1_SX300.jpg" },
+            
+            // Recent Romance
+            { Title: "Past Lives", Year: "2023", Genre: "Drama, Romance", imdbRating: "7.9", Plot: "Nora and Hae Sung, two deeply connected childhood friends, are wrested apart after Nora's family emigrates from South Korea.", Poster: "https://m.media-amazon.com/images/M/MV5BODdmYmRiZjUtYWM0ZC00NWFjLTkxNjAtY2I4ZmNhNGI0MzFlXkEyXkFqcGdeQXVyMTM1MTE1NDMx._V1_SX300.jpg" },
+            { Title: "The Half of It", Year: "2020", Genre: "Comedy, Drama, Romance", imdbRating: "6.9", Plot: "When smart but cash-strapped teen Ellie Chu agrees to write a love letter for a jock, she doesn't expect to become his friend.", Poster: "https://m.media-amazon.com/images/M/MV5BMjczMDlkN2UtYzE1My00M2YxLTkwNmQtNGI0N2ZjMWFkYTRlXkEyXkFqcGdeQXVyMTMxODk2OTU@._V1_SX300.jpg" },
+            
+            // Recent Sci-Fi
+            { Title: "Arrival", Year: "2016", Genre: "Drama, Sci-Fi", imdbRating: "7.9", Plot: "A linguist works with the military to communicate with alien lifeforms after twelve mysterious spacecraft appear around the world.", Poster: "https://m.media-amazon.com/images/M/MV5BMTExMzU0ODcxNDheQTJeQWpwZ15BbWU4MDE1OTI4MzAy._V1_SX300.jpg" },
+            { Title: "Blade Runner 2049", Year: "2017", Genre: "Action, Drama, Sci-Fi", imdbRating: "8.0", Plot: "A young blade runner's discovery of a long-buried secret leads him to track down former blade runner Rick Deckard.", Poster: "https://m.media-amazon.com/images/M/MV5BNzA1Njg4NzYxOV5BMl5BanBnXkFtZTgwODk5NjU3MzI@._V1_SX300.jpg" },
+            { Title: "Interstellar", Year: "2014", Genre: "Adventure, Drama, Sci-Fi", imdbRating: "8.7", Plot: "A team of explorers travel through a wormhole in space in an attempt to ensure humanity's survival.", Poster: "https://m.media-amazon.com/images/M/MV5BZjdkOTU3MDktN2IxOS00OGEyLWFmMjktY2FiMmZkNWIyODZiXkEyXkFqcGdeQXVyMTMxODk2OTU@._V1_SX300.jpg" },
+            
+            // Recent Fantasy/Adventure  
+            { Title: "The Northman", Year: "2022", Genre: "Action, Adventure, Drama", imdbRating: "7.1", Plot: "A young Viking prince seeks revenge against his father's killer.", Poster: "https://m.media-amazon.com/images/M/MV5BMzVlMmY2NTctODgwOC00NDI0LWI0YjQtZjVmMmJiNzJjNmRmXkEyXkFqcGdeQXVyMTEzMTI1Mjk3._V1_SX300.jpg" },
+            { Title: "Encanto", Year: "2021", Genre: "Animation, Comedy, Family", imdbRating: "7.2", Plot: "A Colombian teenage girl has to face the frustration of being the only member of her family without magical powers.", Poster: "https://m.media-amazon.com/images/M/MV5BNjE5NzA4ZDctOTJkZi00NzM0LTkwOTYtMDI4MmNkMzIxODhkXkEyXkFqcGdeQXVyNjY1MTg4Mzc@._V1_SX300.jpg" },
+            
+            // Recent Crime/Drama
+            { Title: "Parasite", Year: "2019", Genre: "Comedy, Drama, Thriller", imdbRating: "8.5", Plot: "Greed and class discrimination threaten the newly formed symbiotic relationship between the wealthy Park family and the destitute Kim clan.", Poster: "https://m.media-amazon.com/images/M/MV5BYWZjMjk3ZTItODQ2ZC00NTY5LWE0ZDYtZTI3MjcwN2Q5NTVkXkEyXkFqcGdeQXVyODk4OTc3MTY@._V1_SX300.jpg" },
+            { Title: "Joker", Year: "2019", Genre: "Crime, Drama, Thriller", imdbRating: "8.4", Plot: "A mentally troubled comedian embarks on a downward spiral that leads to the creation of an iconic villain.", Poster: "https://m.media-amazon.com/images/M/MV5BNGVjNWI4ZGUtNzE0MS00YTJmLWE0ZDctN2ZiYTk2YmI3NTYyXkEyXkFqcGdeQXVyMTkxNjUyNQ@@._V1_SX300.jpg" },
+            { Title: "1917", Year: "2019", Genre: "Action, Drama, War", imdbRating: "8.3", Plot: "Two British soldiers are given an impossible mission during World War I to deliver a message deep in enemy territory.", Poster: "https://m.media-amazon.com/images/M/MV5BOTdmNTFjNDEtNzg0My00ZjkxLTg1ZDAtZTdkMDc2ZmFiNWQ1XkEyXkFqcGdeQXVyNTAzNzgwNTg@._V1_SX300.jpg" },
+            
+            // Recent Animation
+            { Title: "Soul", Year: "2020", Genre: "Animation, Adventure, Comedy", imdbRating: "8.0", Plot: "A musician who has lost his passion for music is transported out of his body and must find his way back.", Poster: "https://m.media-amazon.com/images/M/MV5BZGE1MDg5M2MtNTkyZS00MTY5LTg1YzUtZTlhZmM1Y2EwNmFmXkEyXkFqcGdeQXVyNjA3OTI0MDc@._V1_SX300.jpg" },
+            { Title: "Coco", Year: "2017", Genre: "Animation, Adventure, Family", imdbRating: "8.4", Plot: "Aspiring musician Miguel confronts his family's ancestral ban on music, enters the Land of the Dead to find his great-great-grandfather.", Poster: "https://m.media-amazon.com/images/M/MV5BYjQ5NjM0Y2YtNjZkNC00ZDhkLWJjMWItN2QyNzFkMDE3ZjAxXkEyXkFqcGdeQXVyODIxMzk5NjA@._V1_SX300.jpg" },
+            { Title: "Inside Out", Year: "2015", Genre: "Animation, Adventure, Comedy", imdbRating: "8.1", Plot: "After young Riley is uprooted from her Midwest life, her emotions conflict on how best to navigate a new city, house, and school.", Poster: "https://m.media-amazon.com/images/M/MV5BOTgxMDQwMDk0OF5BMl5BanBnXkFtZTgwNjU5OTg2NDE@._V1_SX300.jpg" }
+        ];
+
+        let startTime = 0;
+        let currentPairIndex = 0;
+        let comparisonData = [];
+        let genreScores = null;
+        
+        const startScreen = document.getElementById('start-screen');
+        const startBtn = document.getElementById('start-btn');
+        const comparisonView = document.getElementById('comparison-view');
+        const summaryView = document.getElementById('summary-view');
+        const moviesView = document.getElementById('movies-view');
+        const comparisonText = document.getElementById('comparison-text');
+        const tradeOffContainer = document.getElementById('trade-off-container');
+        const progressBar = document.getElementById('progress-indicator');
+        const viewMoviesBtn = document.getElementById('view-movies-btn');
+        const restartBtn = document.getElementById('restart-btn');
+        const errorMessage = document.getElementById('error-message');
+        const pairCountSpan = document.getElementById('pair-count');
+
+        // *** Pair Generation ***
+        function generateSparsePairs(categories, exposureCount) {
+            const N = categories.length;
+            const pairs = [];
+            const exposureCounts = new Array(N).fill(0);
+            const usedPairs = new Set();
+            
+            const targetPairs = Math.ceil((N * exposureCount) / 2);
+            let attempts = 0;
+            const maxAttempts = N * N * exposureCount * 4;
+
+            while (pairs.length < targetPairs && attempts < maxAttempts) {
+                attempts++;
+                
+                let candidates = exposureCounts.map((count, index) => ({ count, index }))
+                    .filter(item => item.count < exposureCount)
+                    .sort((a, b) => a.count - b.count);
+
+                if (candidates.length === 0) break;
+                
+                let minCount = candidates[0].count;
+                let topCandidates = candidates.filter(c => c.count === minCount);
+                let indexA = topCandidates[Math.floor(Math.random() * topCandidates.length)].index;
+                
+                let validOpponents = [];
+                for (let j = 0; j < N; j++) {
+                    if (j === indexA || exposureCounts[j] >= exposureCount) continue;
+                    const pairKey = indexA < j ? `${indexA},${j}` : `${j},${indexA}`;
+                    if (!usedPairs.has(pairKey)) {
+                        validOpponents.push(j);
+                    }
+                }
+
+                if (validOpponents.length > 0) {
+                    validOpponents.sort((idx1, idx2) => exposureCounts[idx1] - exposureCounts[idx2]);
+                    const selectionPool = validOpponents.slice(0, 2);
+                    let indexB = selectionPool[Math.floor(Math.random() * selectionPool.length)];
+
+                    const pairKey = indexA < indexB ? `${indexA},${indexB}` : `${indexB},${indexA}`;
+                    pairs.push(indexA < indexB ? [indexA, indexB] : [indexB, indexA]);
+                    usedPairs.add(pairKey);
+                    
+                    exposureCounts[indexA]++;
+                    exposureCounts[indexB]++;
+                }
+            }
+
+            return pairs;
+        }
+
+        const ALL_PAIRS = generateSparsePairs(CATEGORIES, EXPOSURE_COUNT);
+        
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+        }
+        
+        shuffleArray(ALL_PAIRS);
+
+        // *** View Management ***
+        function showStartScreen() {
+            pairCountSpan.textContent = ALL_PAIRS.length;
+            startScreen.classList.remove('hidden');
+            comparisonView.classList.add('hidden');
+            summaryView.classList.add('hidden');
+            moviesView.classList.add('hidden');
+        }
+
+        function startComparison() {
+            errorMessage.textContent = '';
+            
+            if (currentPairIndex >= ALL_PAIRS.length) {
+                comparisonView.classList.add('hidden');
+                showSummaryView();
+                return;
+            }
+
+            document.activeElement.blur();
+            document.querySelectorAll('.choice-option').forEach(el => el.classList.remove('selected'));
+
+            comparisonView.classList.remove('hidden');
+            startScreen.classList.add('hidden');
+
+            const totalComparisons = ALL_PAIRS.length;
+            const currentPair = ALL_PAIRS[currentPairIndex];
+            
+            let [indexA, indexB] = currentPair;
+            let isASideLeft = Math.random() > 0.5;
+            let leftIndex = isASideLeft ? indexA : indexB;
+            let rightIndex = isASideLeft ? indexB : indexA;
+            
+            const itemLeft = CATEGORIES[leftIndex];
+            const itemRight = CATEGORIES[rightIndex];
+            
+            comparisonText.textContent = `Which genre do you prefer? (${currentPairIndex + 1} of ${totalComparisons})`;
+
+            tradeOffContainer.innerHTML = '';
+            
+            const tradeOffOptions = [
+                { text: itemLeft, value: 'LEFT_OVER_RIGHT', winner: leftIndex, loser: rightIndex },
+                { text: itemRight, value: 'RIGHT_OVER_LEFT', winner: rightIndex, loser: leftIndex }
+            ];
+
+            tradeOffOptions.forEach((opt) => {
+                const button = createOptionButton(opt.text, opt.value, opt.winner, opt.loser);
+                button.classList.add('flex-1');
+                tradeOffContainer.appendChild(button);
+            });
+            
+            startTime = performance.now();
+            updateProgress();
+        }
+
+        function createOptionButton(htmlText, value, winnerIndex, loserIndex) {
+            const button = document.createElement('button');
+            button.className = 'choice-option option-button text-lg text-center';
+            button.textContent = htmlText;
+            button.setAttribute('data-value', value);
+            button.setAttribute('data-winner', winnerIndex);
+            button.setAttribute('data-loser', loserIndex);
+            
+            button.onclick = (e) => {
+                document.querySelectorAll('.choice-option').forEach(el => el.classList.remove('selected'));
+                button.classList.add('selected');
+                recordChoice(value, winnerIndex, loserIndex);
+            };
+            return button;
+        }
+
+        function recordChoice(choiceType, winnerIndex, loserIndex) {
+            const endTime = performance.now();
+            const latency = Math.round(endTime - startTime);
+            const currentPair = ALL_PAIRS[currentPairIndex];
+            
+            comparisonData.push({
+                pair: currentPair,
+                choiceType: choiceType,
+                winner: winnerIndex,
+                loser: loserIndex,
+                latency: latency,
+            });
+
+            currentPairIndex++;
+            
+            setTimeout(() => {
+                document.activeElement.blur();
+                startComparison();
+            }, 50);
+        }
+
+        function updateProgress() {
+            const totalComparisons = ALL_PAIRS.length;
+            const percent = (currentPairIndex / totalComparisons) * 100;
+            progressBar.style.width = `${percent}%`;
+        }
+
+        // *** Score Calculation ***
+        function calculateScores() {
+            const scores = CATEGORIES.map((name, index) => ({
+                name: name,
+                index: index,
+                rawScore: 0,
+                weightedScore: 0,
+                normalizedScore: 0,
+            }));
+
+            const totalLatency = comparisonData.reduce((sum, item) => sum + item.latency, 0);
+            const avgLatency = totalLatency / comparisonData.length;
+            
+            comparisonData.forEach(choice => {
+                const [indexA, indexB] = choice.pair;
+                
+                let scoreA = (indexA === choice.winner) ? SCORE_PREFERENCE_WIN : SCORE_PREFERENCE_LOSS;
+                let scoreB = (indexB === choice.winner) ? SCORE_PREFERENCE_WIN : SCORE_PREFERENCE_LOSS;
+                
+                const latencyWeight = avgLatency / choice.latency;
+
+                scores[indexA].rawScore += scoreA;
+                scores[indexB].rawScore += scoreB;
+                
+                scores[indexA].weightedScore += scoreA * latencyWeight;
+                scores[indexB].weightedScore += scoreB * latencyWeight;
+            });
+            
+            const minScore = scores.reduce((min, s) => s.weightedScore < min ? s.weightedScore : min, scores[0].weightedScore);
+            const maxScore = scores.reduce((max, s) => s.weightedScore > max ? s.weightedScore : max, scores[0].weightedScore);
+            const range = maxScore - minScore;
+
+            scores.forEach(s => {
+                if (range === 0) {
+                    s.normalizedScore = 50;
+                } else {
+                    s.normalizedScore = ((s.weightedScore - minScore) / range) * 100;
+                }
+            });
+
+            scores.sort((a, b) => b.weightedScore - a.weightedScore);
+            
+            return { scores, avgLatency, minScore, maxScore };
+        }
+
+        // *** Summary View ***
+        function showSummaryView() {
+            comparisonView.classList.add('hidden');
+            summaryView.classList.remove('hidden');
+            
+            const { scores } = calculateScores();
+            genreScores = scores;
+
+            const positiveCategories = scores.filter(s => s.weightedScore > 0).map(s => s.name);
+            
+            const summaryTextElement = document.getElementById('dynamic-summary-text');
+            
+            let summaryText = '';
+            if (positiveCategories.length > 0) {
+                const top3 = positiveCategories.slice(0, 3);
+                if (top3.length === 1) {
+                    summaryText = `You strongly prefer **${top3[0]}** movies.`;
+                } else if (top3.length === 2) {
+                    summaryText = `You love **${top3[0]}** and **${top3[1]}** movies.`;
+                } else {
+                    summaryText = `Your top genres are **${top3[0]}**, **${top3[1]}**, and **${top3[2]}**.`;
+                }
+            } else {
+                summaryText = `You have balanced taste across all genres.`;
+            }
+
+            summaryTextElement.innerHTML = summaryText;
+            
+            setTimeout(() => {
+                summaryView.classList.add('summary-active');
+            }, 10);
+
+            viewMoviesBtn.onclick = findMovies;
+        }
+
+        // *** Movie Scoring with Sample Data ***
+        function findMovies() {
+            summaryView.classList.add('hidden');
+            
+            // Score movies based on genre preferences
+            const scoredMovies = scoreMovies(SAMPLE_MOVIES);
+            
+            displayMovies(scoredMovies);
+            
+            moviesView.classList.remove('hidden');
+        }
+
+        function scoreMovies(movies) {
+            const scoredMovies = movies.map(movie => {
+                const movieGenres = movie.Genre.split(', ').map(g => g.trim());
+                let matchScore = 0;
+                let matchedGenres = [];
+                let genreMatches = 0;
+
+                // Calculate score based on genre weights
+                for (const movieGenre of movieGenres) {
+                    const genreScore = genreScores.find(g => g.name === movieGenre);
+                    if (genreScore && genreScore.weightedScore > 0) { // Only count positive genres
+                        matchScore += genreScore.weightedScore;
+                        matchedGenres.push(movieGenre);
+                        genreMatches++;
+                    }
+                }
+
+                // Multi-genre bonus: Movies that match multiple preferred genres get a boost
+                if (genreMatches > 1) {
+                    matchScore *= (1 + (genreMatches - 1) * 0.3); // 30% bonus per additional genre match
+                }
+
+                // Recency bonus: Newer movies get a significant boost
+                const year = parseInt(movie.Year);
+                if (year >= 2022) {
+                    matchScore *= 1.5; // 50% boost for 2022+
+                } else if (year >= 2018) {
+                    matchScore *= 1.3; // 30% boost for 2018-2021
+                } else if (year >= 2015) {
+                    matchScore *= 1.15; // 15% boost for 2015-2017
+                }
+
+                // Boost by IMDb rating (but less weight than genre matching)
+                const rating = parseFloat(movie.imdbRating);
+                if (!isNaN(rating)) {
+                    matchScore *= (0.7 + (rating / 10) * 0.3); // Rating accounts for 30% of final weight
+                }
+
+                // If NO positive genre matches, use highest ranked genre that exists in the movie
+                if (matchScore === 0 && movieGenres.length > 0) {
+                    for (const genreScore of genreScores) { // Already sorted by preference
+                        if (movieGenres.includes(genreScore.name)) {
+                            matchScore = Math.max(0, genreScore.weightedScore * 0.5); // 50% penalty for non-preferred
+                            matchedGenres.push(genreScore.name);
+                            break;
+                        }
+                    }
+                }
+
+                return {
+                    ...movie,
+                    matchScore: matchScore,
+                    matchedGenres: matchedGenres,
+                    genreMatches: genreMatches
+                };
+            });
+
+            // Sort by match score (primary), then by year (secondary)
+            scoredMovies.sort((a, b) => {
+                if (Math.abs(a.matchScore - b.matchScore) < 0.1) {
+                    // If scores are very close, prefer newer
+                    return parseInt(b.Year) - parseInt(a.Year);
+                }
+                return b.matchScore - a.matchScore;
+            });
+            
+            return scoredMovies;
+        }
+
+        function displayMovies(movies) {
+            // Display genre weights
+            const weightsContainer = document.getElementById('weights-container');
+            weightsContainer.innerHTML = '';
+            
+            genreScores.slice(0, 6).forEach(genre => {
+                const color = genre.weightedScore > 0 ? 'bg-purple-600' : 'bg-gray-600';
+                weightsContainer.innerHTML += `
+                    <div class="p-2 rounded ${color}">
+                        <div class="font-semibold">${genre.name}</div>
+                        <div class="text-sm text-gray-300">${genre.weightedScore.toFixed(1)}</div>
+                    </div>
+                `;
+            });
+
+            // Display movies
+            const resultsContainer = document.getElementById('movie-results');
+            resultsContainer.innerHTML = '';
+
+            if (movies.length === 0) {
+                resultsContainer.innerHTML = `
+                    <div class="bg-gray-800 p-8 rounded-xl text-center">
+                        <p class="text-xl text-gray-400">No movies found matching your preferences.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            movies.forEach((movie, index) => {
+                const posterUrl = movie.Poster !== 'N/A' ? movie.Poster : 'https://via.placeholder.com/300x450?text=No+Poster';
+                const rating = movie.imdbRating !== 'N/A' ? movie.imdbRating : 'N/A';
+                const matchPercent = Math.min(100, (movie.matchScore / Math.max(...movies.map(m => m.matchScore))) * 100);
+                
+                // Badge for multi-genre matches
+                const multiGenreBadge = movie.genreMatches > 1 ? 
+                    `<span class="bg-green-500 text-white px-2 py-1 rounded-full text-xs font-bold">🎯 ${movie.genreMatches} Genre Match!</span>` : '';
+                
+                resultsContainer.innerHTML += `
+                    <div class="movie-card bg-gray-800 rounded-xl shadow-xl overflow-hidden flex flex-col md:flex-row">
+                        <img src="${posterUrl}" alt="${movie.Title}" class="w-full md:w-48 h-64 md:h-auto object-cover">
+                        <div class="p-6 flex-1">
+                            <div class="flex items-start justify-between mb-2">
+                                <div class="flex-1">
+                                    <h3 class="text-2xl font-bold text-white">${index + 1}. ${movie.Title}</h3>
+                                    <div class="flex gap-2 mt-1">
+                                        <span class="text-yellow-400 font-semibold">${movie.Year}</span>
+                                        ${multiGenreBadge}
+                                    </div>
+                                </div>
+                                <span class="bg-yellow-500 text-black px-3 py-1 rounded-full font-bold text-sm ml-2">⭐ ${rating}</span>
+                            </div>
+                            <p class="text-purple-400 font-semibold mb-3">${movie.Genre}</p>
+                            <p class="text-gray-300 text-sm mb-4">${movie.Plot || 'No plot available.'}</p>
+                            <div class="mb-3">
+                                <div class="flex justify-between text-xs mb-1">
+                                    <span class="text-gray-400">Match Score</span>
+                                    <span class="text-purple-400 font-semibold">${matchPercent.toFixed(0)}%</span>
+                                </div>
+                                <div class="w-full bg-gray-700 rounded-full h-2">
+                                    <div style="width: ${matchPercent}%" class="bg-purple-600 h-2 rounded-full"></div>
+                                </div>
+                            </div>
+                            ${movie.matchedGenres.length > 0 ? `
+                                <p class="text-xs text-gray-500">Matches your preferences: <span class="text-green-400">${movie.matchedGenres.join(', ')}</span></p>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        // *** Initialization ***
+        document.addEventListener('DOMContentLoaded', () => {
+            startBtn.onclick = startComparison;
+            restartBtn.onclick = () => {
+                currentPairIndex = 0;
+                comparisonData = [];
+                genreScores = null;
+                shuffleArray(ALL_PAIRS);
+                showStartScreen();
+            };
+            showStartScreen();
+        });
+    </script>
+</body>
+</html>
