@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Knowledge Ranker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #0d1117; }
+        .comparison-tile {
+            transition: transform 0.1s ease, background-color 0.15s ease;
+            cursor: pointer; user-select: none; will-change: transform;
+        }
+        .comparison-tile:active { transform: scale(0.97); }
+        .tile-correct  { background-color: #15803d !important; }
+        .tile-wrong    { background-color: #b91c1c !important; }
+        .tile-reveal   { background-color: #166534 !important; border: 2px solid #22c55e; }
+        .category-card {
+            transition: transform 0.12s ease, border-color 0.12s ease;
+            cursor: pointer;
+        }
+        .category-card:hover { transform: translateY(-2px); }
+        .category-card:active { transform: scale(0.97); }
+        ::-webkit-scrollbar { display: none; }
+        .fade-in { animation: fadeIn 0.25s ease forwards; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .k-bar { transition: width 0.7s ease-out; }
+    </style>
+</head>
+<body class="text-white">
+<div id="app" class="min-h-screen flex flex-col items-center justify-start p-4 md:p-8">
+
+    <!-- Header -->
+    <header class="w-full max-w-lg mb-6 text-center pt-6">
+        <h1 id="header-title" class="text-3xl font-extrabold text-white">Knowledge Ranker</h1>
+        <p id="header-sub" class="text-gray-400 mt-1 text-sm">Pairwise · Accuracy + Speed</p>
+        <div class="w-full bg-gray-700 rounded-full h-2 mt-4">
+            <div id="progress-indicator" class="h-2 rounded-full transition-all duration-300 ease-out bg-gray-500" style="width: 0%"></div>
+        </div>
+    </header>
+
+    <!-- ═══════════════════════════════════════════
+         SCREEN 1 — Category Selection
+    ════════════════════════════════════════════ -->
+    <div id="category-screen" class="w-full max-w-lg space-y-5">
+
+        <!-- Scoring legend (shown once, upfront) -->
+        <div class="bg-gray-800 rounded-xl p-4 shadow-xl">
+            <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">How it works — your score = accuracy + speed</p>
+            <div class="grid grid-cols-2 gap-2 text-xs">
+                <div class="flex items-center gap-2 bg-green-900 rounded-lg px-3 py-2">
+                    <span class="text-green-400 font-bold w-14 text-center shrink-0">Fast ✓</span>
+                    <span class="text-gray-300">Strong knowledge (+2)</span>
+                </div>
+                <div class="flex items-center gap-2 bg-blue-900 rounded-lg px-3 py-2">
+                    <span class="text-blue-400 font-bold w-14 text-center shrink-0">Slow ✓</span>
+                    <span class="text-gray-300">Working knowledge (+1)</span>
+                </div>
+                <div class="flex items-center gap-2 bg-yellow-900 rounded-lg px-3 py-2">
+                    <span class="text-yellow-400 font-bold w-14 text-center shrink-0">Slow ✗</span>
+                    <span class="text-gray-300">Guessing (0)</span>
+                </div>
+                <div class="flex items-center gap-2 bg-red-900 rounded-lg px-3 py-2">
+                    <span class="text-red-400 font-bold w-14 text-center shrink-0">Fast ✗</span>
+                    <span class="text-gray-300">Misconception (−1)</span>
+                </div>
+            </div>
+            <p class="text-gray-600 text-xs mt-2 text-center">"Fast" = under 3 seconds · Answer as quickly as you honestly can</p>
+        </div>
+
+        <!-- Category grid -->
+        <p class="text-gray-300 font-semibold text-sm text-center">Choose a category to begin:</p>
+        <div id="category-grid" class="grid grid-cols-2 gap-3">
+            <!-- Cards injected by JS -->
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════
+         SCREEN 2 — Comparison (Quiz)
+    ════════════════════════════════════════════ -->
+    <div id="comparison-view" class="w-full max-w-lg flex flex-col items-center space-y-4 hidden">
+        <p id="comparison-text" class="text-base font-semibold text-gray-300 text-center"></p>
+        <div id="tiles-container" class="w-full flex justify-between space-x-3"></div>
+        <div id="feedback-panel" class="w-full hidden fade-in">
+            <div id="feedback-box" class="rounded-xl p-4 text-center border">
+                <p id="fb-result" class="text-lg font-extrabold mb-1"></p>
+                <p id="fb-tier"   class="text-sm font-bold mb-2"></p>
+                <p id="fb-detail" class="text-gray-300 text-xs leading-relaxed"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════
+         SCREEN 3 — Results
+    ════════════════════════════════════════════ -->
+    <div id="results-view" class="w-full max-w-lg mt-2 hidden">
+        <h2 id="results-title" class="text-2xl font-bold mb-5 text-center"></h2>
+
+        <div id="overall-block"    class="bg-gray-800 rounded-xl p-6 shadow-xl mb-5 text-center"></div>
+        <div class="bg-gray-800 rounded-xl p-4 shadow-xl mb-5">
+            <h3 class="text-base font-semibold mb-3 border-b border-gray-700 pb-2">Comparison Breakdown</h3>
+            <div id="breakdown-list" class="space-y-2"></div>
+        </div>
+        <div class="bg-gray-800 rounded-xl p-4 shadow-xl mb-5">
+            <h3 id="ranking-title" class="text-base font-semibold mb-1 border-b border-gray-700 pb-2"></h3>
+            <p  id="ranking-desc"  class="text-gray-500 text-xs mb-3"></p>
+            <div id="item-ranking" class="space-y-2"></div>
+        </div>
+        <div class="bg-gray-800 rounded-xl p-5 shadow-xl mb-5">
+            <h3 class="text-base font-semibold text-white mb-1 border-b border-gray-700 pb-2">How surprised are you?</h3>
+            <p class="text-gray-400 text-xs mb-4 text-center">1 = Not surprised at all &nbsp;·&nbsp; 5 = Very surprised</p>
+            <div id="validation-scale" class="flex justify-between space-x-2"></div>
+            <p id="validation-feedback" class="text-center mt-3 h-5 text-sm"></p>
+        </div>
+        <div class="flex flex-col space-y-3 mb-10">
+            <button id="download-btn"  class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition">Download Raw Data (CSV)</button>
+            <button id="retry-btn"     class="w-full text-white font-bold py-3 px-6 rounded-lg shadow-lg transition"></button>
+            <button id="back-btn"      class="w-full bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition">Choose Different Category</button>
+        </div>
+    </div>
+
+</div>
+<script>
+// =============================================================================
+// CATEGORY DATA
+// =============================================================================
+
+const QUIZ_CATEGORIES = [
+    {
+        id: 'nba',
+        emoji: '🏀',
+        title: 'NBA All-Time Scoring',
+        subtitle: 'Career regular-season points',
+        question: 'Who scored more career NBA points?',
+        rankingLabel: 'Player Knowledge',
+        rankingDesc: "Which players' point totals you know best",
+        colorKey: 'orange',
+        format: v => v.toLocaleString() + ' pts',
+        items: [
+            { name: 'LeBron James',        value: 40241 },
+            { name: 'Kareem Abdul-Jabbar', value: 38387 },
+            { name: 'Karl Malone',         value: 36928 },
+            { name: 'Kobe Bryant',         value: 33643 },
+            { name: 'Michael Jordan',      value: 32292 },
+        ]
+    },
+    {
+        id: 'tennis',
+        emoji: '🎾',
+        title: "Men's Tennis Slams",
+        subtitle: "Grand Slam singles titles",
+        question: 'Who won more Grand Slam singles titles?',
+        rankingLabel: 'Player Knowledge',
+        rankingDesc: "Which players' Slam counts you know best",
+        colorKey: 'green',
+        format: v => v + ' titles',
+        items: [
+            { name: 'Novak Djokovic', value: 24 },
+            { name: 'Rafael Nadal',   value: 22 },
+            { name: 'Roger Federer',  value: 20 },
+            { name: 'Pete Sampras',   value: 14 },
+            { name: 'Björn Borg',     value: 11 },
+        ]
+    },
+    {
+        id: 'boxoffice',
+        emoji: '🎬',
+        title: 'All-Time Box Office',
+        subtitle: 'Worldwide gross (all-time)',
+        question: 'Which movie grossed more worldwide?',
+        rankingLabel: 'Movie Knowledge',
+        rankingDesc: "Which movies' grosses you know best",
+        colorKey: 'purple',
+        format: v => '$' + (v / 1e9).toFixed(2) + 'B',
+        items: [
+            { name: 'Avatar (2009)',                value: 2923706026 },
+            { name: 'Avengers: Endgame',            value: 2799439100 },
+            { name: 'Avatar: The Way of Water',     value: 2320250281 },
+            { name: 'Titanic (1997)',                value: 2264743305 },
+            { name: 'Star Wars: The Force Awakens', value: 2068223624 },
+        ]
+    },
+    {
+        id: 'mountains',
+        emoji: '⛰️',
+        title: 'Mountains by Height',
+        subtitle: 'Summit elevation (meters)',
+        question: 'Which mountain has a higher summit?',
+        rankingLabel: 'Mountain Knowledge',
+        rankingDesc: "Which peaks' heights you know best",
+        colorKey: 'sky',
+        format: v => v.toLocaleString() + ' m',
+        items: [
+            { name: 'Mount Everest', value: 8849 },
+            { name: 'K2',            value: 8611 },
+            { name: 'Kangchenjunga', value: 8586 },
+            { name: 'Lhotse',        value: 8516 },
+            { name: 'Makalu',        value: 8485 },
+        ]
+    },
+    {
+        id: 'population',
+        emoji: '🌍',
+        title: 'Countries by Population',
+        subtitle: 'Estimated 2024 population',
+        question: 'Which country has more people?',
+        rankingLabel: 'Geography Knowledge',
+        rankingDesc: "Which countries' populations you know best",
+        colorKey: 'teal',
+        format: v => v >= 1e9 ? (v / 1e9).toFixed(2) + 'B' : (v / 1e6).toFixed(0) + 'M',
+        items: [
+            { name: 'India',     value: 1441720000 },
+            { name: 'China',     value: 1408280000 },
+            { name: 'USA',       value: 341000000  },
+            { name: 'Indonesia', value: 280000000  },
+            { name: 'Pakistan',  value: 240000000  },
+        ]
+    },
+    {
+        id: 'nfl',
+        emoji: '🏈',
+        title: 'NFL Passing Yards',
+        subtitle: 'Career regular-season passing yards',
+        question: 'Who threw for more career passing yards?',
+        rankingLabel: 'Player Knowledge',
+        rankingDesc: "Which QBs' career totals you know best",
+        colorKey: 'amber',
+        format: v => v.toLocaleString() + ' yds',
+        items: [
+            { name: 'Tom Brady',      value: 89214 },
+            { name: 'Drew Brees',     value: 80358 },
+            { name: 'Peyton Manning', value: 71940 },
+            { name: 'Brett Favre',    value: 71838 },
+            { name: 'Philip Rivers',  value: 63440 },
+        ]
+    },
+];
+
+// All explicit Tailwind classes per color to ensure CDN picks them up
+const THEMES = {
+    orange: { accent: 'text-orange-400', btn: 'bg-orange-600 hover:bg-orange-700', tileHover: 'hover:bg-orange-700', bar: 'bg-orange-500', cardBg: 'bg-orange-950', cardBorder: 'border-orange-600', vHover: 'hover:bg-orange-600', vActive: 'bg-orange-600' },
+    green:  { accent: 'text-green-400',  btn: 'bg-green-600 hover:bg-green-700',   tileHover: 'hover:bg-green-700',  bar: 'bg-green-500',  cardBg: 'bg-green-950',  cardBorder: 'border-green-600',  vHover: 'hover:bg-green-600',  vActive: 'bg-green-600'  },
+    purple: { accent: 'text-purple-400', btn: 'bg-purple-600 hover:bg-purple-700', tileHover: 'hover:bg-purple-700', bar: 'bg-purple-500', cardBg: 'bg-purple-950', cardBorder: 'border-purple-600', vHover: 'hover:bg-purple-600', vActive: 'bg-purple-600' },
+    sky:    { accent: 'text-sky-400',    btn: 'bg-sky-600 hover:bg-sky-700',       tileHover: 'hover:bg-sky-700',    bar: 'bg-sky-500',    cardBg: 'bg-sky-950',    cardBorder: 'border-sky-600',    vHover: 'hover:bg-sky-600',    vActive: 'bg-sky-600'    },
+    teal:   { accent: 'text-teal-400',   btn: 'bg-teal-600 hover:bg-teal-700',     tileHover: 'hover:bg-teal-700',   bar: 'bg-teal-500',   cardBg: 'bg-teal-950',   cardBorder: 'border-teal-600',   vHover: 'hover:bg-teal-600',   vActive: 'bg-teal-600'   },
+    amber:  { accent: 'text-amber-400',  btn: 'bg-amber-600 hover:bg-amber-700',   tileHover: 'hover:bg-amber-700',  bar: 'bg-amber-500',  cardBg: 'bg-amber-950',  cardBorder: 'border-amber-600',  vHover: 'hover:bg-amber-600',  vActive: 'bg-amber-600'  },
+};
+
+// =============================================================================
+// SCORING CONFIG
+// =============================================================================
+
+const FAST_MS = 3000;
+
+const TIERS = {
+    STRONG:       { label: 'Strong Knowledge', score:  2, color: 'text-green-400',  bg: 'bg-green-900',  border: 'border-green-700',  icon: '✓✓' },
+    WORKING:      { label: 'Working Knowledge', score:  1, color: 'text-blue-400',   bg: 'bg-blue-900',   border: 'border-blue-700',   icon: '✓'  },
+    GUESSING:     { label: 'Guessing',          score:  0, color: 'text-yellow-400', bg: 'bg-yellow-900', border: 'border-yellow-700', icon: '?'  },
+    MISCONCEPTION:{ label: 'Misconception',     score: -1, color: 'text-red-400',    bg: 'bg-red-900',    border: 'border-red-700',    icon: '✗'  },
+};
+
+function getTier(isCorrect, ms) {
+    const fast = ms < FAST_MS;
+    if (isCorrect && fast)   return TIERS.STRONG;
+    if (isCorrect && !fast)  return TIERS.WORKING;
+    if (!isCorrect && !fast) return TIERS.GUESSING;
+    return TIERS.MISCONCEPTION;
+}
+
+// =============================================================================
+// STATE
+// =============================================================================
+
+let currentCat   = null;
+let theme        = null;
+let allPairs     = [];
+let shuffled     = [];
+let pairIndex    = 0;
+let startTime    = 0;
+let comparisons  = [];
+let valScore     = 'N/A';
+let awaitingNext = false;
+
+// =============================================================================
+// DOM REFS
+// =============================================================================
+
+const categoryScreen  = document.getElementById('category-screen');
+const comparisonView  = document.getElementById('comparison-view');
+const resultsView     = document.getElementById('results-view');
+const comparisonText  = document.getElementById('comparison-text');
+const tilesContainer  = document.getElementById('tiles-container');
+const progress        = document.getElementById('progress-indicator');
+const feedbackPanel   = document.getElementById('feedback-panel');
+const feedbackBox     = document.getElementById('feedback-box');
+const fbResult        = document.getElementById('fb-result');
+const fbTier          = document.getElementById('fb-tier');
+const fbDetail        = document.getElementById('fb-detail');
+const headerTitle     = document.getElementById('header-title');
+const headerSub       = document.getElementById('header-sub');
+
+// =============================================================================
+// UTILITIES
+// =============================================================================
+
+function shuffle(arr) {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+}
+
+function setProgress(cur, tot) {
+    progress.style.width = `${(cur / tot) * 100}%`;
+}
+
+function showOnly(el) {
+    [categoryScreen, comparisonView, resultsView].forEach(s => s.classList.add('hidden'));
+    el.classList.remove('hidden');
+}
+
+// =============================================================================
+// SCREEN 1 — Category Selection
+// =============================================================================
+
+function renderCategoryScreen() {
+    headerTitle.textContent = 'Knowledge Ranker';
+    headerTitle.className   = 'text-3xl font-extrabold text-white';
+    headerSub.textContent   = 'Pairwise · Accuracy + Speed';
+    setProgress(0, 1);
+    progress.className      = 'h-2 rounded-full transition-all duration-300 ease-out bg-gray-500';
+
+    const grid = document.getElementById('category-grid');
+    grid.innerHTML = QUIZ_CATEGORIES.map(cat => {
+        const t = THEMES[cat.colorKey];
+        return `
+            <div class="category-card bg-gray-800 border-2 border-gray-700 hover:${t.cardBorder} rounded-xl p-4 flex flex-col items-center text-center space-y-1"
+                 data-cat-id="${cat.id}">
+                <span class="text-3xl mb-1">${cat.emoji}</span>
+                <p class="font-bold text-sm text-white leading-tight">${cat.title}</p>
+                <p class="text-gray-500 text-xs">${cat.subtitle}</p>
+                <p class="text-gray-600 text-xs mt-1">${cat.items.length} items · ${cat.items.length * (cat.items.length - 1) / 2} rounds</p>
+            </div>
+        `;
+    }).join('');
+
+    grid.addEventListener('click', e => {
+        const card = e.target.closest('[data-cat-id]');
+        if (card) selectCategory(card.getAttribute('data-cat-id'));
+    });
+
+    showOnly(categoryScreen);
+}
+
+function selectCategory(id) {
+    currentCat = QUIZ_CATEGORIES.find(c => c.id === id);
+    theme      = THEMES[currentCat.colorKey];
+
+    // Build all unique pairs for this category
+    allPairs = [];
+    for (let i = 0; i < currentCat.items.length; i++)
+        for (let j = i + 1; j < currentCat.items.length; j++)
+            allPairs.push([i, j]);
+
+    startQuiz();
+}
+
+// =============================================================================
+// SCREEN 2 — Quiz
+// =============================================================================
+
+function startQuiz() {
+    shuffled     = shuffle(allPairs);
+    pairIndex    = 0;
+    comparisons  = [];
+    valScore     = 'N/A';
+    awaitingNext = false;
+
+    // Update header
+    headerTitle.textContent = `${currentCat.emoji} ${currentCat.title}`;
+    headerTitle.className   = `text-2xl font-extrabold ${theme.accent}`;
+    headerSub.textContent   = currentCat.subtitle;
+    progress.className      = `h-2 rounded-full transition-all duration-300 ease-out ${theme.bar}`;
+
+    feedbackPanel.classList.add('hidden');
+    setProgress(0, shuffled.length);
+    showOnly(comparisonView);
+    showNextPair();
+}
+
+function showNextPair() {
+    if (pairIndex >= shuffled.length) { showResults(); return; }
+
+    feedbackPanel.classList.add('hidden');
+    awaitingNext = false;
+
+    const [iA, iB] = shuffled[pairIndex];
+    comparisonText.textContent = `${currentCat.question} (${pairIndex + 1} / ${shuffled.length})`;
+
+    tilesContainer.innerHTML = '';
+    const tA = makeTile(currentCat.items[iA], iA);
+    const tB = makeTile(currentCat.items[iB], iB);
+    if (Math.random() > 0.5) { tilesContainer.append(tA, tB); }
+    else                      { tilesContainer.append(tB, tA); }
+
+    setProgress(pairIndex, shuffled.length);
+    startTime = performance.now();
+}
+
+function makeTile(item, idx) {
+    const t = document.createElement('div');
+    t.className = `comparison-tile flex-1 p-5 h-36 md:h-44 flex items-center justify-center text-center rounded-xl shadow-xl bg-gray-700 ${theme.tileHover}`;
+    t.setAttribute('data-idx', idx);
+    t.innerHTML = `<span class="text-base md:text-lg font-extrabold leading-snug">${item.name}</span>`;
+    t.onclick = () => recordChoice(idx);
+    return t;
+}
+
+function recordChoice(chosen) {
+    if (awaitingNext) return;
+    awaitingNext = true;
+
+    const ms    = Math.round(performance.now() - startTime);
+    const pair  = shuffled[pairIndex];
+    const [iA, iB] = pair;
+
+    const correct   = currentCat.items[iA].value > currentCat.items[iB].value ? iA : iB;
+    const wrong     = pair.find(i => i !== correct);
+    const isCorrect = chosen === correct;
+    const tier      = getTier(isCorrect, ms);
+
+    comparisons.push({ pair, iA, iB, chosen, correct, wrong, isCorrect, ms, tier,
+        nameA: currentCat.items[iA].name, nameB: currentCat.items[iB].name,
+        chosenName: currentCat.items[chosen].name, correctName: currentCat.items[correct].name });
+
+    // Style tiles
+    tilesContainer.querySelectorAll('.comparison-tile').forEach(t => {
+        t.onclick = null; t.style.cursor = 'default';
+    });
+    const chosenTile  = tilesContainer.querySelector(`[data-idx="${chosen}"]`);
+    const correctTile = tilesContainer.querySelector(`[data-idx="${correct}"]`);
+    if (isCorrect) {
+        chosenTile.classList.add('tile-correct');
+    } else {
+        chosenTile.classList.add('tile-wrong');
+        if (correctTile) correctTile.classList.add('tile-reveal');
+    }
+
+    // Feedback
+    const winItem  = currentCat.items[correct];
+    const loseItem = currentCat.items[wrong];
+    fbResult.textContent = isCorrect ? '✓  Correct!' : '✗  Incorrect';
+    fbResult.className   = `text-lg font-extrabold mb-1 ${isCorrect ? 'text-green-400' : 'text-red-400'}`;
+    fbTier.textContent   = `${tier.icon}  ${tier.label}`;
+    fbTier.className     = `text-sm font-bold mb-2 ${tier.color}`;
+    fbDetail.innerHTML   =
+        `<span class="text-white font-semibold">${winItem.name}</span> ` +
+        `<span class="text-gray-400">(${currentCat.format(winItem.value)})</span>` +
+        `<span class="text-gray-600"> &gt; </span>` +
+        `<span class="text-gray-300">${loseItem.name}</span> ` +
+        `<span class="text-gray-400">(${currentCat.format(loseItem.value)})</span>` +
+        `<br><span class="text-gray-500">Response: ${(ms / 1000).toFixed(2)}s &nbsp;·&nbsp; threshold: ${FAST_MS / 1000}s</span>`;
+    feedbackBox.className = `rounded-xl p-4 text-center border ${tier.bg} ${tier.border}`;
+    feedbackPanel.classList.remove('hidden');
+
+    setTimeout(() => { pairIndex++; showNextPair(); }, 1600);
+}
+
+// =============================================================================
+// SCREEN 3 — Results
+// =============================================================================
+
+function showResults() {
+    setProgress(shuffled.length, shuffled.length);
+    showOnly(resultsView);
+
+    document.getElementById('results-title').textContent = `${currentCat.emoji} Your Knowledge Profile`;
+    document.getElementById('results-title').className   = `text-2xl font-bold mb-5 text-center ${theme.accent}`;
+    document.getElementById('ranking-title').textContent = currentCat.rankingLabel;
+    document.getElementById('ranking-desc').textContent  = currentCat.rankingDesc;
+
+    renderOverall();
+    renderBreakdown();
+    renderItemRanking();
+    renderValidation();
+
+    document.getElementById('download-btn').onclick = generateCSV;
+
+    const retryBtn = document.getElementById('retry-btn');
+    retryBtn.textContent = 'Play Again (Same Category)';
+    retryBtn.className   = `w-full ${theme.btn} text-white font-bold py-3 px-6 rounded-lg shadow-lg transition`;
+    retryBtn.onclick     = startQuiz;
+
+    document.getElementById('back-btn').onclick = renderCategoryScreen;
+}
+
+function renderOverall() {
+    const n          = comparisons.length;
+    const numCorrect = comparisons.filter(d => d.isCorrect).length;
+    const accuracy   = Math.round((numCorrect / n) * 100);
+    const avgMs      = comparisons.reduce((s, d) => s + d.ms, 0) / n;
+    const rawScore   = comparisons.reduce((s, d) => s + d.tier.score, 0);
+    const normalized = Math.round(((rawScore + n) / (3 * n)) * 100);
+
+    let label, lc, bc;
+    if      (normalized >= 80) { label = 'Expert';         lc = 'text-green-400';  bc = 'bg-green-500'; }
+    else if (normalized >= 60) { label = 'Knowledgeable';  lc = 'text-blue-400';   bc = 'bg-blue-500';  }
+    else if (normalized >= 40) { label = 'Casual Fan';     lc = 'text-yellow-400'; bc = 'bg-yellow-500';}
+    else                       { label = 'Still Learning'; lc = 'text-red-400';    bc = 'bg-red-500';   }
+
+    const tc = {};
+    Object.values(TIERS).forEach(t => { tc[t.label] = 0; });
+    comparisons.forEach(d => { tc[d.tier.label]++; });
+
+    document.getElementById('overall-block').innerHTML = `
+        <p class="text-6xl font-extrabold ${lc} mb-1">${normalized}</p>
+        <p class="text-gray-400 text-xs mb-1">Knowledge Score (0–100)</p>
+        <p class="text-xl font-bold ${lc} mb-4">${label}</p>
+        <div class="w-full bg-gray-700 rounded-full h-3 mb-5">
+            <div id="score-bar" style="width:0%" class="${bc} h-3 rounded-full k-bar"></div>
+        </div>
+        <div class="grid grid-cols-2 gap-3 text-sm text-left">
+            <div class="bg-gray-700 rounded-lg p-3">
+                <p class="text-gray-400 text-xs">Accuracy</p>
+                <p class="text-white font-bold text-xl">${accuracy}%</p>
+                <p class="text-gray-500 text-xs">${numCorrect} / ${n} correct</p>
+            </div>
+            <div class="bg-gray-700 rounded-lg p-3">
+                <p class="text-gray-400 text-xs">Avg Response Time</p>
+                <p class="text-white font-bold text-xl">${(avgMs / 1000).toFixed(1)}s</p>
+                <p class="text-gray-500 text-xs">threshold: ${FAST_MS / 1000}s</p>
+            </div>
+            <div class="bg-green-900 rounded-lg p-3">
+                <p class="text-green-400 text-xs font-semibold">Strong Knowledge</p>
+                <p class="text-white font-bold text-xl">${tc['Strong Knowledge']}</p>
+            </div>
+            <div class="bg-blue-900 rounded-lg p-3">
+                <p class="text-blue-400 text-xs font-semibold">Working Knowledge</p>
+                <p class="text-white font-bold text-xl">${tc['Working Knowledge']}</p>
+            </div>
+            <div class="bg-yellow-900 rounded-lg p-3">
+                <p class="text-yellow-400 text-xs font-semibold">Guessing</p>
+                <p class="text-white font-bold text-xl">${tc['Guessing']}</p>
+            </div>
+            <div class="bg-red-900 rounded-lg p-3">
+                <p class="text-red-400 text-xs font-semibold">Misconception</p>
+                <p class="text-white font-bold text-xl">${tc['Misconception']}</p>
+            </div>
+        </div>
+        <p class="text-gray-600 text-xs mt-4">Raw: ${rawScore} / ${2*n} &nbsp;·&nbsp; Formula: (score + n) / (3n) × 100</p>
+    `;
+    setTimeout(() => {
+        const bar = document.getElementById('score-bar');
+        if (bar) bar.style.width = `${normalized}%`;
+    }, 100);
+}
+
+function renderBreakdown() {
+    document.getElementById('breakdown-list').innerHTML = comparisons.map((d, i) => {
+        const otherIdx  = d.pair.find(ix => ix !== d.chosen);
+        const otherName = currentCat.items[otherIdx].name;
+        const otherHtml = !d.isCorrect
+            ? `<span class="text-green-400">${otherName} ✓</span>`
+            : `<span class="text-gray-400">${otherName}</span>`;
+        return `
+            <div class="flex items-center p-3 bg-gray-700 rounded-lg text-xs gap-2">
+                <span class="text-gray-500 font-bold w-5 shrink-0">${i+1}.</span>
+                <span class="flex-1 min-w-0">
+                    <span class="${d.isCorrect ? 'text-white' : 'text-red-300'} font-semibold">${d.chosenName}</span>
+                    <span class="text-gray-600"> vs </span>${otherHtml}
+                </span>
+                <span class="text-gray-400 shrink-0">${(d.ms/1000).toFixed(1)}s</span>
+                <span class="${d.tier.color} font-bold shrink-0">${d.tier.icon}</span>
+            </div>`;
+    }).join('');
+}
+
+function renderItemRanking() {
+    const itemStats = currentCat.items.map((item, i) => {
+        const apps    = comparisons.filter(d => d.pair.includes(i));
+        const score   = apps.reduce((s, d) => s + d.tier.score, 0);
+        const correct = apps.filter(d => d.isCorrect).length;
+        return { name: item.name, value: item.value, apps: apps.length, score, correct };
+    });
+    // Sort by actual value descending — this is the ground truth ranking
+    itemStats.sort((a, b) => b.value - a.value);
+
+    const n   = currentCat.items.length;
+    const max = 2 * (n - 1);
+    const min = -(n - 1);
+    const rng = max - min;
+
+    document.getElementById('item-ranking').innerHTML = itemStats.map((s, rank) => {
+        const pct      = Math.round(((s.score - min) / rng) * 100);
+        const barColor = s.score > 0 ? theme.bar : (s.score === 0 ? 'bg-gray-500' : 'bg-red-500');
+        // Rank label color: gold for #1, gray otherwise — this is the TRUE rank
+        const rankColor = rank === 0 ? 'text-yellow-400' : 'text-gray-500';
+        return `
+            <div class="p-3 bg-gray-700 rounded-lg">
+                <div class="flex items-center mb-2">
+                    <span class="w-5 font-bold text-xs ${rankColor}">${rank+1}.</span>
+                    <span class="flex-1 text-white font-semibold text-sm">${s.name}</span>
+                    <span class="text-gray-500 text-xs">${currentCat.format(s.value)}</span>
+                </div>
+                <div class="w-full bg-gray-600 rounded-full h-2">
+                    <div style="width:${pct}%" class="${barColor} h-2 rounded-full k-bar"></div>
+                </div>
+                <p class="text-gray-500 text-xs mt-1">${s.correct}/${s.apps} comparisons correct &nbsp;·&nbsp; score: ${s.score >= 0 ? '+' : ''}${s.score}</p>
+            </div>`;
+    }).join('');
+}
+
+function renderValidation() {
+    const scale = document.getElementById('validation-scale');
+    scale.innerHTML = [1,2,3,4,5].map(v =>
+        `<button data-v="${v}" class="validation-btn flex-1 p-3 bg-gray-600 ${theme.vHover} rounded-lg text-lg font-bold transition duration-150">${v}</button>`
+    ).join('');
+    const fb = document.getElementById('validation-feedback');
+    fb.className = `text-center mt-3 h-5 text-sm ${theme.accent}`;
+    scale.addEventListener('click', e => {
+        const btn = e.target.closest('.validation-btn');
+        if (!btn) return;
+        valScore = btn.getAttribute('data-v');
+        fb.textContent = `Noted — surprise rated ${valScore}/5.`;
+        scale.querySelectorAll('.validation-btn').forEach(b => {
+            b.disabled = true;
+            b.className = b.className.replace(theme.vActive, '').replace(theme.vHover, '');
+            b.classList.add('bg-gray-600');
+        });
+        btn.classList.remove('bg-gray-600');
+        btn.classList.add(theme.vActive);
+    });
+}
+
+// =============================================================================
+// CSV EXPORT
+// =============================================================================
+
+function generateCSV() {
+    const n          = comparisons.length;
+    const numCorrect = comparisons.filter(d => d.isCorrect).length;
+    const avgMs      = comparisons.reduce((s, d) => s + d.ms, 0) / n;
+    const rawScore   = comparisons.reduce((s, d) => s + d.tier.score, 0);
+    const normalized = Math.round(((rawScore + n) / (3 * n)) * 100);
+
+    let csv = `--- Knowledge Ranker Results ---\n`;
+    csv += `Category: ${currentCat.title}\n`;
+    csv += `Knowledge Score (0-100): ${normalized}\n`;
+    csv += `Raw Score: ${rawScore}\n`;
+    csv += `Accuracy: ${numCorrect}/${n} (${Math.round(numCorrect/n*100)}%)\n`;
+    csv += `Average Latency (ms): ${avgMs.toFixed(0)}\n`;
+    csv += `Fast Threshold (ms): ${FAST_MS}\n`;
+    csv += `Surprise Rating: ${valScore}/5\n`;
+    csv += `\n--- Score Formula ---\n`;
+    csv += `Fast+Correct=+2, Slow+Correct=+1, Slow+Wrong=0, Fast+Wrong=-1\n`;
+    csv += `Normalized = (rawScore + n) / (3*n) * 100\n`;
+    csv += `\n--- Raw Comparison Data ---\n`;
+    csv += `#,Item A,Item B,Chosen,Correct Answer,Is Correct,Latency (ms),Fast?,Knowledge Tier,Tier Score\n`;
+    comparisons.forEach((d, i) => {
+        const fast = d.ms < FAST_MS ? 'Yes' : 'No';
+        csv += `${i+1},"${d.nameA}","${d.nameB}","${d.chosenName}","${d.correctName}",${d.isCorrect},${d.ms},${fast},"${d.tier.label}",${d.tier.score}\n`;
+    });
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.setAttribute('href', URL.createObjectURL(blob));
+    link.setAttribute('download', `knowledge_ranker_${currentCat.id}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+// =============================================================================
+// INIT
+// =============================================================================
+
+document.addEventListener('DOMContentLoaded', renderCategoryScreen);
+</script>
+</body>
+</html>
